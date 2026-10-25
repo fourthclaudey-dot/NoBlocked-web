@@ -13,6 +13,7 @@ import { log } from "./log";
 import { interceptReactions, startReactions } from "./reactions";
 import { applyDefaults, onSettingsChange, saveSettings, storage } from "./settings";
 import { installStreamPatches, rerender } from "./stream";
+import { startSettingsEntry } from "./settings-entry";
 import { openSettings } from "./ui";
 import { interceptPassive, silencedStores, startUnreads } from "./unreads";
 import { load, save } from "./storage";
@@ -43,6 +44,7 @@ const features: Feature[] = [
     { name: "unreads", ready: () => ReadStateStore(), start: startUnreads },
     { name: "loadmore", ready: () => MessageStore(), start: startLoadMore },
     { name: "reactions", ready: () => MessageReactionsStore(), start: startReactions },
+    { name: "settings entry", ready: () => document.body, start: startSettingsEntry },
 ];
 let lastCheck = 0;
 

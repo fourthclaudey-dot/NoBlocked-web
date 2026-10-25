@@ -5,7 +5,7 @@
 
 declare const GM_xmlhttpRequest: (req: { method: string; url: string; data?: string; headers?: Record<string, string>; timeout?: number; onload?: (r: { status: number; responseText: string }) => void; onerror?: () => void; ontimeout?: () => void }) => void;
 
-const session = Math.random().toString(36).slice(2);
+let session = "";
 const outbox: unknown[] = [];
 let flushQueued = false;
 /** Objects the REPL sees as `nb`. */
@@ -14,6 +14,7 @@ export const devHandle: Record<string, any> = {};
 function http(method: string, path: string, data?: string): Promise<string> {
     return new Promise(resolve => {
         if (typeof GM_xmlhttpRequest !== "function") return resolve("");
+        session ||= Math.random().toString(36).slice(2);
         GM_xmlhttpRequest({
             method, url: `http://${__DEV_HOST__}${path}${path.includes("?") ? "&" : "?"}s=${session}`, data, timeout: 30000,
             headers: data ? { "Content-Type": "application/json" } : undefined,
@@ -69,12 +70,11 @@ function inspect(v: any, depth: number): any {
     return ins(v, 0);
 }
 
-const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
-
 async function run({ id, code, depth = 3 }: { id: number; code: string; depth?: number }) {
     let ok = true;
     let value: any;
     try {
+        const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
         value = await new AsyncFunction("nb", code)(devHandle);
     } catch (e) {
         ok = false;

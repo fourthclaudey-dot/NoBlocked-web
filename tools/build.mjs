@@ -65,6 +65,15 @@ export async function buildRelease() {
     const js = `${header}\n\n${await bundle()}`;
     await mkdir(dist, { recursive: true });
     await writeFile(path.join(dist, "NoBlocked.user.js"), js);
+    // GitHub Pages landing page: opening the .user.js link makes Tampermonkey offer the install.
+    await writeFile(path.join(dist, "index.html"), `<!doctype html><meta charset="utf-8"><title>NoBlocked</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>body{font:16px/1.5 system-ui,sans-serif;max-width:40em;margin:3em auto;padding:0 1em;background:#313338;color:#dbdee1}a{color:#00a8fc}</style>
+<h1>NoBlocked</h1>
+<p>Hides blocked and ignored users everywhere in Discord (web).</p>
+<p><a href="NoBlocked.user.js"><b>Install NoBlocked.user.js</b></a> (needs Tampermonkey)</p>
+<p><a href="https://github.com/fourthclaudey-dot/NoBlocked-web">Source, details and issues</a></p>
+`);
     return { js, ms: Date.now() - started };
 }
 
