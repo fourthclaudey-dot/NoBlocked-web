@@ -1,9 +1,8 @@
 // Dev-only client for tools/dev-server.mjs: logs out, code in (tools/eval.mjs).
-// Transport is HTTP through GM_xmlhttpRequest (the dev loader grants it): Chrome's Local Network
+// Transport is HTTP through the loader's GM_xmlhttpRequest (bridge.ts): Chrome's Local Network
 // Access blocks the page's own requests to 127.0.0.1. Release builds strip every call site
 // (`if (__DEV__)`), so this module is dropped from them.
-
-declare const GM_xmlhttpRequest: (req: { method: string; url: string; data?: string; headers?: Record<string, string>; timeout?: number; onload?: (r: { status: number; responseText: string }) => void; onerror?: () => void; ontimeout?: () => void }) => void;
+import { listen, send, TO_LOADER, TO_PAGE, ToPage } from "./bridge";
 
 let session = "";
 const outbox: unknown[] = [];
@@ -11,17 +10,20 @@ let flushQueued = false;
 /** Objects the REPL sees as `nb`. */
 export const devHandle: Record<string, any> = {};
 
+let xhrId = 0;
+const xhrPending = new Map<number, (text: string) => void>();
+
 function http(method: string, path: string, data?: string): Promise<string> {
+    if (!xhrId) listen<ToPage>(TO_PAGE, msg => {
+        if (msg.op !== "xhr-done") return;
+        xhrPending.get(msg.id)?.(msg.status === 200 ? msg.text : "");
+        xhrPending.delete(msg.id);
+    });
+    session ||= Math.random().toString(36).slice(2);
+    const id = ++xhrId;
     return new Promise(resolve => {
-        if (typeof GM_xmlhttpRequest !== "function") return resolve("");
-        session ||= Math.random().toString(36).slice(2);
-        GM_xmlhttpRequest({
-            method, url: `http://${__DEV_HOST__}${path}${path.includes("?") ? "&" : "?"}s=${session}`, data, timeout: 30000,
-            headers: data ? { "Content-Type": "application/json" } : undefined,
-            onload: r => resolve(r.status === 200 ? r.responseText : ""),
-            onerror: () => resolve(""),
-            ontimeout: () => resolve(""),
-        });
+        xhrPending.set(id, resolve);
+        send(TO_LOADER, { op: "xhr", id, method, url: `http://${__DEV_HOST__}${path}${path.includes("?") ? "&" : "?"}s=${session}`, data });
     });
 }
 

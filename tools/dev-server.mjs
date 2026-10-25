@@ -1,6 +1,6 @@
 // Dev server for the userscript (Discord web + Tampermonkey).
-//  - GET  /dev-loader.user.js       -> install once in Tampermonkey (see devLoader below)
-//  - GET  /NoBlocked.dev.js         -> fresh dev build (with the dev client, src/dev.ts)
+//  - GET  /dev-loader.user.js       -> install once in Tampermonkey (src/userscript.ts, dev mode)
+//  - GET  /NoBlocked.dev.js         -> fresh dev build of the page half (with src/dev.ts)
 //  - GET  /NoBlocked.user.js        -> fresh release build
 //  - POST /push   [{type, data}]    -> page -> server: "hello" / "log" / "result"
 //  - GET  /poll                     -> server -> page: long poll for "run" messages
@@ -14,7 +14,7 @@ import http from "http";
 import path from "path";
 import { fileURLToPath } from "url";
 
-import { GRANTS, buildRelease, bundle, metadata } from "./build.mjs";
+import { GRANTS, buildRelease, bundleLoader, bundlePage, metadata } from "./build.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PORT = Number(process.env.PORT ?? 4042);
@@ -85,53 +85,12 @@ function evalInPage(code, { depth = 3, timeout = 20000 } = {}) {
     });
 }
 
-/**
- * Dev loader: the release grants plus GM_xmlhttpRequest for talking to this server.
- * Tampermonkey cannot fetch synchronously, but the build must run before Discord's own scripts:
- * the loader runs the build it stored last time, then fetches the current one and reloads the
- * page once if it changed. So after an edit a single F5 is still enough.
- */
+/** Dev loader: the release grants plus GM_xmlhttpRequest for talking to this server. */
 async function devLoader() {
-    const grants = [...GRANTS, "GM_xmlhttpRequest"];
-    const header = await metadata({ name: "NoBlocked (dev)", grants, extra: [["connect", "127.0.0.1"]] });
+    const header = await metadata({ name: "NoBlocked (dev)", grants: [...GRANTS, "GM_xmlhttpRequest"], extra: [["connect", "127.0.0.1"]] });
     return `${header}
 
-(function () {
-    var KEY = "nbDevBuild";
-    var cached = GM_getValue(KEY, "");
-    function run(code) {
-        try {
-            new Function(${JSON.stringify(grants.join(", "))}, code + "\\n//# sourceURL=NoBlocked.dev.js")(${grants.join(", ")});
-        } catch (e) {
-            console.error("[NoBlocked dev] build crashed", e);
-        }
-    }
-    // Reload guard: at most 3 automatic reloads per 30 s.
-    function mayReload() {
-        try {
-            var now = Date.now();
-            var hist = JSON.parse(sessionStorage.getItem("nbDevReloads") || "[]").filter(function (t) { return now - t < 30000; });
-            if (hist.length >= 3) return false;
-            hist.push(now);
-            sessionStorage.setItem("nbDevReloads", JSON.stringify(hist));
-            return true;
-        } catch (e) { return false; }
-    }
-    if (cached) run(cached);
-    GM_xmlhttpRequest({
-        method: "GET",
-        url: "http://${HOST}/NoBlocked.dev.js?t=" + Date.now(),
-        onload: function (r) {
-            if (r.status !== 200 || r.responseText === cached) return;
-            GM_setValue(KEY, r.responseText);
-            if (!cached) return run(r.responseText);
-            // GM_setValue persists asynchronously in Manifest V3 Tampermonkey: reload after it landed.
-            if (mayReload()) setTimeout(function () { location.reload(); }, 1500);
-        },
-        onerror: function () { console.warn("[NoBlocked dev] dev server unreachable, running the stored build"); },
-    });
-})();
-`;
+${await bundleLoader({ dev: true, devHost: HOST })}`;
 }
 
 function readBody(req) {
@@ -155,7 +114,7 @@ const server = http.createServer(async (req, res) => {
         if (req.method === "GET" && url.pathname === "/NoBlocked.dev.js") {
             if (process.env.NB_HOLD) return send(res, 503, "held");
             const started = Date.now();
-            const js = await bundle({ dev: true, devHost: HOST });
+            const js = await bundlePage({ dev: true, devHost: HOST });
             pushLog("server", `served dev build (${Date.now() - started}ms, ${js.length} bytes)`);
             return send(res, 200, js, "text/javascript");
         }

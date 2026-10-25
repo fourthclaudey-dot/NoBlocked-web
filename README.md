@@ -65,14 +65,18 @@ Svenska, Русский, 中文. The script follows Discord's language.
 
 ## How it works
 
-`@run-at document-start` + `@sandbox raw`: the script runs in the page before Discord's
-webpack runtime and wraps every module factory as chunks arrive (Discord loads several runtimes
-on one chunk array). Stores and helpers are found by their names and exports. The chat's
+The script has two halves. Tampermonkey may run a userscript in the page's JavaScript world or
+in an isolated one (it differs between browsers and versions), and Discord's internals are only
+reachable from the page's. So the userscript itself only keeps the `GM_*` APIs (storage, menu)
+and, at `document-start`, injects the main code into the page as an inline script carrying
+Discord's CSP nonce (`blob:` as a fallback); the halves talk through DOM events. In the page the
+main code runs before Discord's webpack runtime and wraps every module factory as chunks arrive
+(Discord loads several runtimes on one chunk array). Stores and helpers are found by their names and exports. The chat's
 "channel stream" is built inside Discord's chat module, so that module's source is patched
 before it first runs to pass the finished stream through NoBlocked. Unread silencing filters
 `MESSAGE_CREATE` for the stores behind unread dots, DM order, previews, the inbox and
-notifications. Settings live in Tampermonkey storage (`GM_getValue` is synchronous, so the
-cached block list is there before anything renders).
+notifications. Settings live in Tampermonkey storage; the userscript hands the stored values
+over together with the main code, so the cached block list is there before anything renders.
 
 ## Building
 

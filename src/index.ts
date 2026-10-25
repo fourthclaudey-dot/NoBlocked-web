@@ -3,11 +3,12 @@
 // 2. the moment RelationshipStore exists, lend it our cached block/ignore list;
 // 3. the moment Flux exists, add our interceptor. From the first dispatch on, each feature starts
 //    as soon as the stores it needs exist — before they have handled any message.
+import { listen, RUNNING_ATTR, TO_PAGE, ToPage } from "./bridge";
 import { devHandle, startDev } from "./dev";
 import { leaks, probe, startProbe } from "./devprobe";
 import { Flux, GatewayConnectionStore, isFlux, LocaleStore, MessageReactionsStore, MessageStore, ReadStateStore, RelationshipStore } from "./discord";
 import { devForceIgnored, isAuthoritative, kindOf, lendCache, onHiddenChange, startHidden } from "./hidden";
-import { setLocaleSource, t } from "./i18n";
+import { setLocaleSource } from "./i18n";
 import { startLoadMore } from "./loadmore";
 import { log } from "./log";
 import { interceptReactions, startReactions } from "./reactions";
@@ -19,6 +20,7 @@ import { interceptPassive, silencedStores, startUnreads } from "./unreads";
 import { load, save } from "./storage";
 import * as wp from "./webpack";
 
+document.documentElement.setAttribute(RUNNING_ATTR, "");
 const t0 = performance.now();
 /** Dev builds: "before" recordings run without the chat patches and the borrowed block list. */
 const noFix = __DEV__ && !!load("devNoFix");
@@ -89,9 +91,8 @@ wp.waitFor(isFlux, F => {
 onSettingsChange(rerender);
 onHiddenChange(rerender);
 
-if (typeof GM_registerMenuCommand === "function") {
-    try { GM_registerMenuCommand(`⚙ NoBlocked · ${t().settings}`, openSettings); } catch {}
-}
+// Tampermonkey menu entry (registered by the loader half)
+listen<ToPage>(TO_PAGE, msg => { if (msg.op === "open-settings") openSettings(); });
 
 if (__DEV__) Object.assign(devHandle, { wp, storage, saveSettings, kindOf, isAuthoritative, rerender, Flux, openSettings, features, silencedStores, devForceIgnored, leaks, probe, setNoFix: (v: boolean) => save("devNoFix", v) });
 log.info("loaded");

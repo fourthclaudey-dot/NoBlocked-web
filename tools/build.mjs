@@ -1,6 +1,7 @@
-// Builds src/index.ts into the userscript.
-//   release: dist/NoBlocked.user.js  (metadata block + bundle)
-//   dev:     the bare bundle with dev tooling, served by tools/dev-server.mjs to the dev loader
+// Builds the userscript: src/index.ts (the page half) is bundled and embedded as a string into
+// src/userscript.ts (the Tampermonkey half, which injects it into the page; see src/bridge.ts).
+//   release: dist/NoBlocked.user.js  (metadata block + loader with the page code inside)
+//   dev:     the dev loader (served by tools/dev-server.mjs) fetches the page code from the server
 import { build } from "esbuild";
 import { mkdir, readFile, writeFile } from "fs/promises";
 import path from "path";
@@ -12,9 +13,8 @@ const dist = path.join(root, "dist");
 /** Where GitHub Pages serves the release; Tampermonkey checks it for updates. */
 export const PAGES_URL = "https://fourthclaudey-dot.github.io/NoBlocked-web/";
 
-/** Tampermonkey grants. Shared with the dev loader so dev runs in the same sandbox as release. */
+/** Tampermonkey grants. The dev loader adds GM_xmlhttpRequest for talking to the dev server. */
 export const GRANTS = ["GM_getValue", "GM_setValue", "GM_registerMenuCommand"];
-export const SANDBOX = "raw";
 export const MATCHES = ["https://discord.com/*", "https://ptb.discord.com/*", "https://canary.discord.com/*"];
 
 export async function metadata({ name = "NoBlocked", grants = GRANTS, extra = [] } = {}) {
@@ -28,7 +28,6 @@ export async function metadata({ name = "NoBlocked", grants = GRANTS, extra = []
         ["license", "MIT"],
         ...MATCHES.map(m => ["match", m]),
         ["run-at", "document-start"],
-        ["sandbox", SANDBOX],
         ...grants.map(g => ["grant", g]),
         ...extra,
     ];
@@ -36,9 +35,9 @@ export async function metadata({ name = "NoBlocked", grants = GRANTS, extra = []
     return ["// ==UserScript==", ...lines.map(([k, v]) => `// @${k.padEnd(width)}${v}`), "// ==/UserScript=="].join("\n");
 }
 
-export async function bundle({ dev = false, devHost = "127.0.0.1:4042" } = {}) {
+async function bundleEntry(entry, { dev, devHost, page }) {
     const result = await build({
-        entryPoints: [path.join(root, "src/index.ts")],
+        entryPoints: [path.join(root, "src", entry)],
         bundle: true,
         write: false,
         format: "iife",
@@ -46,10 +45,21 @@ export async function bundle({ dev = false, devHost = "127.0.0.1:4042" } = {}) {
         target: "firefox115",
         legalComments: "none",
         minifySyntax: true, // folds `if (__DEV__)`: release builds carry no dev code
-        define: { __DEV__: JSON.stringify(dev), __DEV_HOST__: JSON.stringify(devHost) },
+        define: { __DEV__: JSON.stringify(dev), __DEV_HOST__: JSON.stringify(devHost), __PAGE_CODE__: JSON.stringify(page ?? "") },
         logLevel: "silent",
     });
     return result.outputFiles[0].text;
+}
+
+/** The page half: everything that touches Discord. */
+export function bundlePage({ dev = false, devHost = "127.0.0.1:4042" } = {}) {
+    return bundleEntry("index.ts", { dev, devHost });
+}
+
+/** The Tampermonkey half; release builds carry the page half inside. */
+export async function bundleLoader({ dev = false, devHost = "127.0.0.1:4042" } = {}) {
+    const page = dev ? "" : await bundlePage({ dev, devHost });
+    return bundleEntry("userscript.ts", { dev, devHost, page });
 }
 
 export async function buildRelease() {
@@ -62,7 +72,7 @@ export async function buildRelease() {
             ["downloadURL", `${PAGES_URL}NoBlocked.user.js`],
         ],
     });
-    const js = `${header}\n\n${await bundle()}`;
+    const js = `${header}\n\n${await bundleLoader()}`;
     await mkdir(dist, { recursive: true });
     await writeFile(path.join(dist, "NoBlocked.user.js"), js);
     // GitHub Pages landing page: opening the .user.js link makes Tampermonkey offer the install.
