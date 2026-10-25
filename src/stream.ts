@@ -7,6 +7,7 @@
 import { displayCategory } from "./classify";
 import { devHandle } from "./dev";
 import { React } from "./discord";
+import { isReady } from "./hidden";
 import { t } from "./i18n";
 import { log } from "./log";
 import { modeOf, storage } from "./settings";
@@ -27,6 +28,12 @@ export function onVisibleMessages(fn: typeof visibleListener) {
     visibleListener = fn;
 }
 
+let messageTransform: ((channelId: string, message: any) => any) | null = null;
+/** Lets a feature show a different copy of a visible message (e.g. without unverified reactions). */
+export function onRowMessage(fn: typeof messageTransform) {
+    messageTransform = fn;
+}
+
 /** Make open chats rebuild their stream (settings or hidden users changed). */
 export function rerender() {
     version++;
@@ -41,6 +48,8 @@ function barLabel(cat: "blocked" | "ignored" | "replies", n: number) {
 }
 
 function process(stream: Item[], messages: any): Item[] {
+    // Until relationships are known nothing is drawn: no message can be classified yet.
+    if (!isReady()) return [];
     const hit = cache.get(stream);
     if (hit && hit.version === version) return hit.out;
     let out = stream;
@@ -57,14 +66,26 @@ function process(stream: Item[], messages: any): Item[] {
     } catch (e) {
         log.error("stream processing failed", e);
     }
-    cache.set(stream, { version, out });
-    if (__DEV__) devHandle.lastStream = { input: stream, out };
     const channelId = messages?.channelId;
     if (visibleListener && channelId) {
         const visible: any[] = [];
         for (const item of out) if (item.type === "MESSAGE" && item.content) visible.push(item.content);
         try { visibleListener(channelId, visible.reverse()); } catch (e) { log.error("visible listener", e); }
     }
+    if (messageTransform && channelId) {
+        out = out.map(item => {
+            if (item.type !== "MESSAGE" || !item.content) return item;
+            try {
+                const m = messageTransform!(channelId, item.content);
+                return m === item.content ? item : { ...item, content: m };
+            } catch (e) {
+                log.error("message transform", e);
+                return item;
+            }
+        });
+    }
+    cache.set(stream, { version, out });
+    if (__DEV__) devHandle.lastStream = { input: stream, out };
     return out;
 }
 

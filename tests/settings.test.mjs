@@ -3,7 +3,7 @@ import assert from "assert/strict";
 import { test } from "node:test";
 import { load } from "./load.mjs";
 
-const { applyDefaults, modeOf, countsAsNew, hidesReactions, defaults } = await load("settings.ts", { GM_getValue: undefined, GM_setValue: undefined });
+const { applyDefaults, modeOf, countsAsNew, hidesReactions, threadModeOf, defaults } = await load("settings.ts");
 
 test("fresh install gets the defaults", () => {
     assert.deepEqual(applyDefaults({}), defaults);
@@ -37,4 +37,14 @@ test("modes, total exclusion, unread and reactions", () => {
     }
     s.blocked.reactions = false;
     assert.equal(hidesReactions("blocked", s), true);
+});
+
+test("thread modes: mask by default, filled in for old settings, hide under total exclusion", () => {
+    const s = applyDefaults({ blocked: { mode: "bar", unread: false, reactions: true } });
+    assert.equal(threadModeOf("blocked", s), "mask");
+    assert.equal(threadModeOf("ignored", s), "mask");
+    s.ignored.threads = "hide";
+    assert.equal(threadModeOf("ignored", s), "hide");
+    s.total = true;
+    assert.equal(threadModeOf("blocked", s), "hide");
 });

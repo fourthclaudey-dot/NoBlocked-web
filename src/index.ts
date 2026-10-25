@@ -1,19 +1,21 @@
 // NoBlocked for Discord web. Runs at document-start, before Discord's own scripts:
 // 1. hook webpack and register source patches (they apply as modules arrive);
-// 2. the moment RelationshipStore exists, lend it our cached block/ignore list;
+// 2. the chat stays blank until Discord knows who is blocked/ignored (hidden.ts);
 // 3. the moment Flux exists, add our interceptor. From the first dispatch on, each feature starts
 //    as soon as the stores it needs exist — before they have handled any message.
 import { listen, RUNNING_ATTR, TO_PAGE, ToPage } from "./bridge";
 import { devHandle, startDev } from "./dev";
 import { leaks, probe, startProbe } from "./devprobe";
-import { Flux, GatewayConnectionStore, isFlux, LocaleStore, MessageReactionsStore, MessageStore, ReadStateStore, RelationshipStore } from "./discord";
-import { devForceIgnored, isAuthoritative, kindOf, lendCache, onHiddenChange, startHidden } from "./hidden";
+import { ChannelStore, Flux, GatewayConnectionStore, isFlux, LocaleStore, MessageReactionsStore, MessageStore, ReadStateStore, RelationshipStore, UserStore } from "./discord";
+import { devForceIgnored, isAuthoritative, kindOf, onHiddenChange, startHidden } from "./hidden";
 import { setLocaleSource } from "./i18n";
 import { startLoadMore } from "./loadmore";
 import { log } from "./log";
 import { interceptReactions, startReactions } from "./reactions";
 import { applyDefaults, onSettingsChange, saveSettings, storage } from "./settings";
 import { installStreamPatches, rerender } from "./stream";
+import { interceptThreadCount, startThreadCount } from "./threadcount";
+import { interceptThreads, refreshThreads, startThreads } from "./threads";
 import { startSettingsEntry } from "./settings-entry";
 import { openSettings } from "./ui";
 import { interceptPassive, silencedStores, startUnreads } from "./unreads";
@@ -34,9 +36,6 @@ setLocaleSource(() => LocaleStore()?.locale ?? document.documentElement.lang);
 if (!noFix) installStreamPatches();
 wp.hookWebpack();
 
-if (!noFix) wp.waitFor(wp.byStoreName("RelationshipStore"), R => {
-    try { lendCache(R); } catch (e) { log.error("RelationshipStore patch failed", e); }
-});
 
 interface Feature { name: string; ready(): unknown; start(): () => void; started?: boolean }
 
@@ -46,6 +45,8 @@ const features: Feature[] = [
     { name: "unreads", ready: () => ReadStateStore(), start: startUnreads },
     { name: "loadmore", ready: () => MessageStore(), start: startLoadMore },
     { name: "reactions", ready: () => MessageReactionsStore(), start: startReactions },
+    { name: "threads", ready: () => ChannelStore() && UserStore(), start: startThreads },
+    { name: "thread counts", ready: () => wp.findStore("ThreadMessageStore"), start: startThreadCount },
     { name: "settings entry", ready: () => document.body, start: startSettingsEntry },
 ];
 let lastCheck = 0;
@@ -75,7 +76,7 @@ const pending = () => features.some(f => !f.started);
 function interceptor(action: any): boolean {
     if (pending()) startReady();
     try {
-        return interceptReactions(action) || interceptPassive(action);
+        return interceptThreads(action) || interceptReactions(action) || interceptPassive(action) || interceptThreadCount(action);
     } catch (e) {
         log.error("interceptor", e);
         return false;
@@ -89,6 +90,7 @@ wp.waitFor(isFlux, F => {
 });
 
 onSettingsChange(rerender);
+onSettingsChange(refreshThreads);
 onHiddenChange(rerender);
 
 // Tampermonkey menu entry (registered by the loader half)

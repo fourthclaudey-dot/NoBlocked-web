@@ -1,7 +1,7 @@
 // Settings window: same sections, texts and order as the mobile plugin's settings page.
 // Plain DOM styled with Discord's CSS variables, so it needs nothing from Discord's React tree.
 import { t } from "./i18n";
-import { Category, Mode, saveSettings, storage } from "./settings";
+import { Category, Mode, saveSettings, storage, ThreadMode } from "./settings";
 
 type ModeKey = "inherit" | Mode;
 
@@ -23,6 +23,7 @@ const CSS = `
 #${ID} .nb-row input{margin:2px 0 0;flex:none;accent-color:var(--brand-500,var(--brand-experiment,#5865f2));width:16px;height:16px}
 #${ID} .nb-text{display:flex;flex-direction:column;gap:2px;font-size:16px}
 #${ID} .nb-sub{font-size:13px;color:var(--text-muted,#949ba4)}
+#${ID} .nb-subtitle{margin:4px 10px 2px;font-size:14px;font-weight:600;color:var(--header-primary,var(--text-strong,#f2f3f5))}
 #${ID} hr{border:0;border-top:1px solid var(--background-modifier-accent,rgba(78,80,88,.48));margin:6px 0}
 #${ID} .nb-foot{margin-top:16px;font-size:13px;color:var(--text-muted,#949ba4)}
 `;
@@ -46,6 +47,10 @@ function section(title: string, ...children: (Node | null)[]) {
     return el("div", { className: "nb-section" }, el("h3", {}, title), ...children);
 }
 
+function subTitle(title: string) {
+    return el("div", { className: "nb-subtitle" }, title);
+}
+
 let open: HTMLElement | null = null;
 
 function changed() {
@@ -59,7 +64,7 @@ function modePicker(name: string, value: string, options: ModeKey[], onChange: (
 }
 
 function categorySection(cat: Category, title: string, options: ModeKey[]) {
-    const s = storage[cat] as { mode: string; unread: boolean; reactions?: boolean };
+    const s = storage[cat] as { mode: string; unread: boolean; reactions?: boolean; threads?: ThreadMode };
     const str = t();
     return section(title,
         modePicker(`nb-${cat}`, s.mode, options, v => (s.mode = v)),
@@ -68,6 +73,12 @@ function categorySection(cat: Category, title: string, options: ModeKey[]) {
         cat !== "replies"
             ? row("checkbox", str.reactions, storage.total || !!s.reactions, storage.total, v => { s.reactions = v; changed(); }, str.reactionsNote)
             : null,
+        cat !== "replies" ? el("hr") : null,
+        cat !== "replies" ? subTitle(str.threads) : null,
+        ...(cat !== "replies"
+            ? (["mask", "hide"] as ThreadMode[]).map(m => row("radio", str.threadModes[m], (storage.total ? "hide" : s.threads) === m, storage.total,
+                v => { if (v) { s.threads = m; changed(); } }, undefined, `nb-${cat}-threads`))
+            : []),
     );
 }
 

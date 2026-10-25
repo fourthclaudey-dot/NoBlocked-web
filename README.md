@@ -35,15 +35,24 @@ Settings: Tampermonkey menu → **⚙ NoBlocked · Settings**, or Discord → Us
   server, so other devices and the next start agree; at start, unread chats that only have
   hidden messages are checked and marked read. "Passive" server updates (a new last message id
   with no author) are checked before they can light a channel up. Configurable per category.
+- **Threads they create** — by default the thread stays but its title is replaced ("Thread of a
+  blocked user") in the channel list, under the message and in the "started a thread" notice,
+  and the thread says it was started by "Blocked user" / "Ignored user". Or hide such threads
+  completely. Separate choice for blocked and ignored users.
+- **Thread message counts** — the number next to a thread doesn't count blocked and ignored
+  users' messages (for threads under 100 messages: one API request per thread).
 - **Reactions** — their reactions are subtracted from reaction counters and they are removed
   from the "who reacted" list (the script asks the API who reacted, only for the open chat;
-  costs extra requests). Separate switch for blocked and for ignored users.
+  costs extra requests). A reaction appears only once it has been checked, so one left by a
+  hidden user never flashes; results are remembered across visits. Separate switch for blocked
+  and for ignored users.
 - **Clean history** — date dividers of days where only hidden users wrote, and a "NEW
   MESSAGES" line with nothing visible below it, are dropped. When a whole page of older
   messages is hidden, the script keeps loading until something visible arrives.
-- **No flash** — it starts before Discord's own code and keeps its own copy of the
-  block/ignore list, which it lends to Discord until the server's list arrives. Opening a link
-  to a hidden message no longer unfolds it.
+- **No flash** — it starts before Discord's own code; until Discord has loaded who is blocked
+  and ignored, the chat stays empty instead of showing messages that can't be classified yet
+  (offline: after 5 s, with the list from the last visit). Opening a link to a hidden message no
+  longer unfolds it.
 - **Total exclusion** — one switch that overrides everything above to "hide completely".
 
 Languages: English, Deutsch, Français, Español, Italiano, Português, Polski, Nederlands,

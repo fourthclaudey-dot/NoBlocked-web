@@ -1,14 +1,18 @@
-// Who is hidden. Until Discord has the real relationship list (READY / CONNECTION_OPEN) we trust
-// our persisted copy — and lend it to RelationshipStore itself, so everything Discord draws in
-// that window (bars, "Blocked message" reply previews, …) already knows who is hidden.
-import { log } from "./log";
+// Who is hidden. Discord learns relationships from the gateway (READY / CONNECTION_OPEN); until
+// then the chat stays blank (see stream.ts) rather than showing messages we can't classify yet.
+// Offline, the chat opens after READY_TIMEOUT_MS with the persisted list from the last session.
 import { Flux, GatewayConnectionStore, RelationshipStore, RELATIONSHIP_EVENTS } from "./discord";
-import { after } from "./patcher";
+import { log } from "./log";
 import { Kind, persist, storage } from "./settings";
+
+const READY_TIMEOUT_MS = 5000;
 
 let blocked = new Set<string>(storage.cache?.blocked ?? []);
 let ignored = new Set<string>((storage.cache?.ignored ?? []).filter(id => !blocked.has(id)));
+/** Discord's own relationship list is loaded. */
 let authoritative = false;
+/** The chat may render: relationships are known, or we gave up waiting and use the cache. */
+let ready = false;
 const listeners = new Set<() => void>();
 
 /** Dev builds: user ids treated as ignored, to simulate histories full of hidden messages. */
@@ -26,9 +30,20 @@ export function hiddenIds(): string[] {
     return [...blocked, ...ignored];
 }
 
+export function isReady() {
+    return ready;
+}
+
+/** Called when the hidden list changes or the chat becomes ready to render. */
 export function onHiddenChange(fn: () => void) {
     listeners.add(fn);
     return () => void listeners.delete(fn);
+}
+
+function notify() {
+    for (const fn of listeners) {
+        try { fn(); } catch (e) { log.error("hidden listener", e); }
+    }
 }
 
 function sameSet(a: Set<string>, b: Set<string>) {
@@ -57,44 +72,19 @@ function sync() {
     if (sameSet(blocked, nextBlocked) && sameSet(ignored, nextIgnored)) return;
     blocked = nextBlocked;
     ignored = nextIgnored;
-    for (const fn of listeners) {
-        try { fn(); } catch (e) { log.error("hidden listener", e); }
-    }
+    notify();
 }
 
-/**
- * Until Discord has the real relationship list, answer its blocked/ignored checks from our cache
- * too. Once authoritative, every patch returns Discord's own answer untouched.
- * Called the moment the RelationshipStore module loads, before anything can ask it.
- */
-export function lendCache(R: any) {
-    const cacheBlocked = new Set(storage.cache.blocked);
-    const cacheIgnored = new Set(storage.cache.ignored);
-    const early = () => !authoritative;
-    const isB = (id: any) => early() && typeof id === "string" && cacheBlocked.has(id);
-    const isI = (id: any) => early() && typeof id === "string" && cacheIgnored.has(id) && !cacheBlocked.has(id);
-    const withCache = (ret: unknown, extra: Set<string>) =>
-        early() && Array.isArray(ret) ? [...new Set([...ret, ...extra])] : ret;
-    const hooks: [string, (args: any[], ret: any) => any][] = [
-        ["isBlocked", ([id], ret) => ret || isB(id)],
-        ["isIgnored", ([id], ret) => ret || isI(id)],
-        ["isBlockedOrIgnored", ([id], ret) => ret || isB(id) || isI(id)],
-        ["isBlockedForMessage", ([m], ret) => ret || isB(m?.author?.id)],
-        ["isIgnoredForMessage", ([m], ret) => ret || isI(m?.author?.id)],
-        ["isBlockedOrIgnoredForMessage", ([m], ret) => ret || isB(m?.author?.id) || isI(m?.author?.id)],
-        ["getBlockedIDs", (_, ret) => withCache(ret, cacheBlocked)],
-        ["getIgnoredIDs", (_, ret) => withCache(ret, cacheIgnored)],
-        ["getBlockedOrIgnoredIDs", (_, ret) => withCache(ret, new Set([...cacheBlocked, ...cacheIgnored]))],
-        ["getRelationshipType", ([id], ret) => (!ret && isB(id) ? 2 : ret)], // 2 = blocked
-    ];
-    // Patch what exists: a method renamed by a Discord update only loses its own hook.
-    const unpatches = hooks.filter(([name]) => typeof R[name] === "function").map(([name, fn]) => after(R, name, fn));
-    return () => unpatches.forEach(u => u());
+function markReady() {
+    if (ready) return;
+    ready = true;
+    notify();
 }
 
 function onConnectionOpen() {
     authoritative = true;
     sync();
+    markReady();
 }
 
 export function isAuthoritative() {
@@ -103,13 +93,15 @@ export function isAuthoritative() {
 
 export function startHidden() {
     // Started late (script installed mid-session): Discord already has the real relationship list.
-    authoritative = !!GatewayConnectionStore()?.isConnected?.();
+    authoritative = ready = !!GatewayConnectionStore()?.isConnected?.();
     sync();
+    const timer = setTimeout(markReady, READY_TIMEOUT_MS);
     const F = Flux();
     RelationshipStore().addChangeListener(sync);
     F.subscribe("CONNECTION_OPEN", onConnectionOpen);
     for (const t of RELATIONSHIP_EVENTS) F.subscribe(t, sync);
     return () => {
+        clearTimeout(timer);
         RelationshipStore().removeChangeListener(sync);
         F.unsubscribe("CONNECTION_OPEN", onConnectionOpen);
         for (const t of RELATIONSHIP_EVENTS) F.unsubscribe(t, sync);

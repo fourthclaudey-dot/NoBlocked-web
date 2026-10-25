@@ -31,6 +31,14 @@ interface Strings {
     mergedIgnored: Plural;
     mergedReplies: Plural;
     collapse: string;
+    threads: string;
+    threadModes: Record<"hide" | "mask", string>;
+    /** Placeholder title of a thread created by a blocked / ignored user. */
+    threadBlocked: string;
+    threadIgnored: string;
+    /** Shown as the creator of a masked thread ("Started by …"). */
+    userBlocked: string;
+    userIgnored: string;
     /** Settings window (web only). */
     settings: string;
     close: string;
@@ -83,6 +91,12 @@ const en: Strings = {
     collapse: "Collapse",
     settings: "Settings",
     close: "Close",
+    threads: "Threads they create",
+    threadModes: { mask: "Show, hide the title", hide: "Don't show at all" },
+    threadBlocked: "Thread of a blocked user",
+    threadIgnored: "Thread of an ignored user",
+    userBlocked: "Blocked user",
+    userIgnored: "Ignored user",
 };
 
 const de: Strings = {
@@ -114,6 +128,12 @@ const de: Strings = {
     collapse: "Einklappen",
     settings: "Einstellungen",
     close: "Schließen",
+    threads: "Von ihnen erstellte Threads",
+    threadModes: { mask: "Anzeigen, Titel ausblenden", hide: "Gar nicht anzeigen" },
+    threadBlocked: "Thread eines blockierten Nutzers",
+    threadIgnored: "Thread eines ignorierten Nutzers",
+    userBlocked: "Blockierter Nutzer",
+    userIgnored: "Ignorierter Nutzer",
 };
 
 const fr: Strings = {
@@ -145,6 +165,12 @@ const fr: Strings = {
     collapse: "Réduire",
     settings: "Paramètres",
     close: "Fermer",
+    threads: "Fils qu'ils créent",
+    threadModes: { mask: "Afficher, masquer le titre", hide: "Ne pas afficher du tout" },
+    threadBlocked: "Fil d'un utilisateur bloqué",
+    threadIgnored: "Fil d'un utilisateur ignoré",
+    userBlocked: "Utilisateur bloqué",
+    userIgnored: "Utilisateur ignoré",
 };
 
 const es: Strings = {
@@ -176,6 +202,12 @@ const es: Strings = {
     collapse: "Contraer",
     settings: "Ajustes",
     close: "Cerrar",
+    threads: "Hilos que crean",
+    threadModes: { mask: "Mostrar, ocultar el título", hide: "No mostrar en absoluto" },
+    threadBlocked: "Hilo de un usuario bloqueado",
+    threadIgnored: "Hilo de un usuario ignorado",
+    userBlocked: "Usuario bloqueado",
+    userIgnored: "Usuario ignorado",
 };
 
 const it: Strings = {
@@ -207,6 +239,12 @@ const it: Strings = {
     collapse: "Comprimi",
     settings: "Impostazioni",
     close: "Chiudi",
+    threads: "Thread che creano",
+    threadModes: { mask: "Mostra, nascondi il titolo", hide: "Non mostrare affatto" },
+    threadBlocked: "Thread di un utente bloccato",
+    threadIgnored: "Thread di un utente ignorato",
+    userBlocked: "Utente bloccato",
+    userIgnored: "Utente ignorato",
 };
 
 const pt: Strings = {
@@ -238,6 +276,12 @@ const pt: Strings = {
     collapse: "Recolher",
     settings: "Definições",
     close: "Fechar",
+    threads: "Tópicos que criam",
+    threadModes: { mask: "Mostrar, ocultar o título", hide: "Não mostrar de todo" },
+    threadBlocked: "Tópico de um utilizador bloqueado",
+    threadIgnored: "Tópico de um utilizador ignorado",
+    userBlocked: "Utilizador bloqueado",
+    userIgnored: "Utilizador ignorado",
 };
 
 const pl: Strings = {
@@ -269,6 +313,12 @@ const pl: Strings = {
     collapse: "Zwiń",
     settings: "Ustawienia",
     close: "Zamknij",
+    threads: "Wątki, które tworzą",
+    threadModes: { mask: "Pokazuj, ukryj tytuł", hide: "Nie pokazuj wcale" },
+    threadBlocked: "Wątek zablokowanego użytkownika",
+    threadIgnored: "Wątek ignorowanego użytkownika",
+    userBlocked: "Zablokowany użytkownik",
+    userIgnored: "Ignorowany użytkownik",
 };
 
 const nl: Strings = {
@@ -300,6 +350,12 @@ const nl: Strings = {
     collapse: "Inklappen",
     settings: "Instellingen",
     close: "Sluiten",
+    threads: "Threads die ze maken",
+    threadModes: { mask: "Tonen, titel verbergen", hide: "Helemaal niet tonen" },
+    threadBlocked: "Thread van een geblokkeerde gebruiker",
+    threadIgnored: "Thread van een genegeerde gebruiker",
+    userBlocked: "Geblokkeerde gebruiker",
+    userIgnored: "Genegeerde gebruiker",
 };
 
 const sv: Strings = {
@@ -331,6 +387,12 @@ const sv: Strings = {
     collapse: "Fäll ihop",
     settings: "Inställningar",
     close: "Stäng",
+    threads: "Trådar de skapar",
+    threadModes: { mask: "Visa, dölj rubriken", hide: "Visa inte alls" },
+    threadBlocked: "Tråd från en blockerad användare",
+    threadIgnored: "Tråd från en ignorerad användare",
+    userBlocked: "Blockerad användare",
+    userIgnored: "Ignorerad användare",
 };
 
 const ru: Strings = {
@@ -362,6 +424,12 @@ const ru: Strings = {
     collapse: "Свернуть",
     settings: "Настройки",
     close: "Закрыть",
+    threads: "Треды, которые они создают",
+    threadModes: { mask: "Показывать, скрывая название", hide: "Не показывать вовсе" },
+    threadBlocked: "Тред заблокированного пользователя",
+    threadIgnored: "Тред игнорируемого пользователя",
+    userBlocked: "Заблокированный пользователь",
+    userIgnored: "Игнорируемый пользователь",
 };
 
 const zh: Strings = {
@@ -393,6 +461,12 @@ const zh: Strings = {
     collapse: "收起",
     settings: "设置",
     close: "关闭",
+    threads: "他们创建的子区",
+    threadModes: { mask: "显示，但隐藏标题", hide: "完全不显示" },
+    threadBlocked: "已屏蔽用户的子区",
+    threadIgnored: "已忽略用户的子区",
+    userBlocked: "已屏蔽的用户",
+    userIgnored: "已忽略的用户",
 };
 
 const LOCALES: Record<string, Strings> = { en, de, fr, es, it, pt, pl, nl, sv, ru, zh };

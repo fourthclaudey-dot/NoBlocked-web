@@ -8,7 +8,7 @@ import { t } from "./i18n";
 declare const __PAGE_CODE__: string;
 
 /** Keys the page code reads at start. */
-const KEYS = ["settings", "devNoFix"];
+const KEYS = ["settings", "reactionCache", "devNoFix"];
 
 function values() {
     const out: Record<string, string | undefined> = {};
