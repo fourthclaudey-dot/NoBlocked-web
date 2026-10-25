@@ -44,6 +44,8 @@ function shouldSilence(action: any) {
 }
 
 const WRAPPED = Symbol("nbSilenced");
+/** Names of the stores whose MESSAGE_CREATE is filtered (for diagnostics). */
+export const silencedStores: string[] = [];
 
 function silence(orig: Function) {
     if ((orig as any)[WRAPPED]) return orig;
@@ -64,6 +66,7 @@ function wrapStoreHandlers() {
         const orig = handlers.MESSAGE_CREATE;
         handlers.MESSAGE_CREATE = silence(orig);
         restore.push(() => void (handlers.MESSAGE_CREATE = orig));
+        silencedStores.push(node.name);
         count++;
     }
     // Stores created later (lazily loaded chunks) are wrapped as they register.
@@ -71,6 +74,7 @@ function wrapStoreHandlers() {
         const [name, handlers] = args;
         if (handlers && typeof handlers.MESSAGE_CREATE === "function" && isSilenced(name, handlers)) {
             args[1] = { ...handlers, MESSAGE_CREATE: silence(handlers.MESSAGE_CREATE) };
+            silencedStores.push(name);
         }
         return args;
     });
@@ -214,6 +218,7 @@ async function verifyPassive(action: any, key: string, held: any[]) {
         const after = (state && ackAnchor(state)) ?? RS.lastMessageId(channelId);
         try {
             const msgs = after ? await get(`/channels/${channelId}/messages`, { after, limit: 50 }) : [];
+            if (__DEV__) log.info("passive check", { channelId, after, last: entry.lastMessageId ?? entry.last_message_id, got: msgs.length, hidden: msgs.filter(m => silentForUnread(m)).length });
             if (!msgs.length) continue; // nothing there anymore (deleted): drop
             if (msgs.every(m => silentForUnread(m))) {
                 queueAck(channelId, msgs.reduce((a: string | undefined, m: any) => snowflakeMax(a, m.id), undefined as any));
@@ -241,7 +246,8 @@ export function interceptPassive(action: any): boolean {
         const last: string | undefined = c?.lastMessageId ?? c?.last_message_id;
         if (!c?.id || !last || c.id === selected || RS.hasUnread(c.id)) return true;
         const local = RS.lastMessageId(c.id);
-        if (local && !snowflakeGreater(last, local)) return true;
+        // No read state to compare with (channel never opened): nothing to check against, pass it on.
+        if (!local || !snowflakeGreater(last, local)) return true;
         held.push(c);
         return false;
     });

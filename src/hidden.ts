@@ -11,8 +11,12 @@ let ignored = new Set<string>((storage.cache?.ignored ?? []).filter(id => !block
 let authoritative = false;
 const listeners = new Set<() => void>();
 
+/** Dev builds: user ids treated as ignored, to simulate histories full of hidden messages. */
+export const devForceIgnored = new Set<string>();
+
 export function kindOf(userId: string | undefined | null): Kind | null {
     if (!userId) return null;
+    if (__DEV__ && devForceIgnored.has(userId)) return "ignored";
     if (blocked.has(userId)) return "blocked";
     if (ignored.has(userId)) return "ignored";
     return null;

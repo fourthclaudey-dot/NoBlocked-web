@@ -4,27 +4,34 @@
 // 3. the moment Flux exists, add our interceptor. From the first dispatch on, each feature starts
 //    as soon as the stores it needs exist — before they have handled any message.
 import { devHandle, startDev } from "./dev";
+import { leaks, probe, startProbe } from "./devprobe";
 import { Flux, GatewayConnectionStore, isFlux, LocaleStore, MessageReactionsStore, MessageStore, ReadStateStore, RelationshipStore } from "./discord";
-import { isAuthoritative, kindOf, lendCache, onHiddenChange, startHidden } from "./hidden";
+import { devForceIgnored, isAuthoritative, kindOf, lendCache, onHiddenChange, startHidden } from "./hidden";
 import { setLocaleSource, t } from "./i18n";
 import { startLoadMore } from "./loadmore";
 import { log } from "./log";
 import { interceptReactions, startReactions } from "./reactions";
-import { applyDefaults, onSettingsChange, storage } from "./settings";
+import { applyDefaults, onSettingsChange, saveSettings, storage } from "./settings";
 import { installStreamPatches, rerender } from "./stream";
 import { openSettings } from "./ui";
-import { interceptPassive, startUnreads } from "./unreads";
+import { interceptPassive, silencedStores, startUnreads } from "./unreads";
+import { load, save } from "./storage";
 import * as wp from "./webpack";
 
 const t0 = performance.now();
-if (__DEV__) startDev({ href: location.href, t0, readyState: document.readyState });
+/** Dev builds: "before" recordings run without the chat patches and the borrowed block list. */
+const noFix = __DEV__ && !!load("devNoFix");
+if (__DEV__) {
+    startDev({ href: location.href, t0, readyState: document.readyState, noFix });
+    startProbe();
+}
 
 applyDefaults();
 setLocaleSource(() => LocaleStore()?.locale ?? document.documentElement.lang);
-installStreamPatches();
+if (!noFix) installStreamPatches();
 wp.hookWebpack();
 
-wp.waitFor(wp.byStoreName("RelationshipStore"), R => {
+if (!noFix) wp.waitFor(wp.byStoreName("RelationshipStore"), R => {
     try { lendCache(R); } catch (e) { log.error("RelationshipStore patch failed", e); }
 });
 
@@ -84,5 +91,5 @@ if (typeof GM_registerMenuCommand === "function") {
     try { GM_registerMenuCommand(`⚙ NoBlocked · ${t().settings}`, openSettings); } catch {}
 }
 
-if (__DEV__) Object.assign(devHandle, { wp, storage, kindOf, isAuthoritative, rerender, Flux, openSettings, features });
+if (__DEV__) Object.assign(devHandle, { wp, storage, saveSettings, kindOf, isAuthoritative, rerender, Flux, openSettings, features, silencedStores, devForceIgnored, leaks, probe, setNoFix: (v: boolean) => save("devNoFix", v) });
 log.info("loaded");
